@@ -5,12 +5,13 @@ const openai = new OpenAI({
 });
 
 module.exports = async (req, res) => {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  // Set CORS headers for all responses
+  res.setHeader('Access-Control-Allow-Origin', '*'); // or specify your Shopify domain
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
+    // Preflight request
     return res.status(200).end();
   }
 
