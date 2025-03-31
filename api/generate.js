@@ -41,6 +41,7 @@ module.exports = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in API:', error);
+    console.error('❌ Full error:', error); // ← THÊM DÒNG NÀY
     res.status(500).json({ error: error.message });
   }
 };
