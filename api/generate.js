@@ -5,20 +5,25 @@ const openai = new OpenAI({
 });
 
 module.exports = async (req, res) => {
+  // ✅ THÊM header CORS cho mọi response
+  res.setHeader('Access-Control-Allow-Origin', '*'); // hoặc thay bằng domain cụ thể
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // ✅ Nếu trình duyệt gửi preflight (OPTIONS), trả về 200 ngay
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Only POST requests allowed' });
   }
 
   const { prompt } = req.body;
 
-  if (!prompt || prompt.trim() === '') {
-    return res.status(400).json({ message: 'Missing prompt in request body' });
-  }
-
   try {
-    // Generate text using ChatGPT
     const chat = await openai.chat.completions.create({
-      model: 'gpt-4-0125-preview', // Update if you're using latest model
+      model: 'gpt-4-0125-preview',
       messages: [
         { role: 'system', content: 'Describe a hoodie pattern based on user request.' },
         { role: 'user', content: prompt }
@@ -28,11 +33,9 @@ module.exports = async (req, res) => {
 
     const pattern = chat.choices[0].message.content;
 
-    // Generate image with DALL·E
     const image = await openai.images.generate({
       model: 'dall-e-3',
-      prompt: `A photograph of a Pembroke Welsh Corgi wearing a hoodie with this design: ${pattern}. Clearly show the dog facing forward.`,
-      n: 1,
+      prompt: `A Corgi wearing a hoodie with this pattern: ${pattern}`,
       size: '1024x1024'
     });
 
@@ -40,8 +43,7 @@ module.exports = async (req, res) => {
     res.status(200).json({ imageUrl });
 
   } catch (error) {
-    console.error('❌ Error in API:', error);
-    console.error('❌ Full error:', error); // ← THÊM DÒNG NÀY
+    console.error('❌ Error:', error);
     res.status(500).json({ error: error.message });
   }
 };
