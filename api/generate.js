@@ -17,10 +17,10 @@ module.exports = async (req, res) => {
     return res.status(405).json({ message: "Only POST requests allowed" });
   }
 
-  const { apparel, breed, design, name } = req.body;
+  const { apparel, dogBreed, text, name } = req.body;
 
   try {
-    let finalPrompt = `A full-body studio photo of a ${breed} wearing a ${apparel} with an all-over print ${design} pattern.`;
+    let finalPrompt = `A full-body studio photo of a ${dogBreed} wearing a ${apparel} with an all-over print ${text} pattern.`;
 
     if (name && name.trim() !== "") {
       finalPrompt += ` The word '${name}' is printed in large, bold capital letters across the center of the chest of the ${apparel}, clearly visible.`;
