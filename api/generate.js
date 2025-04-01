@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
       ? `The word '${name}' is printed in large, bold capital letters at the center of the chest of the ${apparel}, clearly visible.`
       : "";
 
-    const prompt = `A full-body studio photo of a ${dogBreed} wearing a ${apparel} with an all-over print ${text} pattern. The pattern is flat, clearly printable, and suitable for real fabric printing, avoiding 3D textures, gradients, or light effects. ${namePrompt} The print covers the entire surface of the ${apparel} including hood, sleeves, and front. Use soft, neutral lighting and a gray studio background. Do not include props, shadows, or extra subjects. Only one dog wearing the ${apparel} should appear.`;
+    const prompt = `A full-body studio photo of a ${dogBreed} sitting and facing forward, captured from the front wearing a ${apparel} with an all-over print ${text} pattern. The pattern is flat, clearly printable, and suitable for real fabric printing, avoiding 3D textures, gradients, or light effects. ${namePrompt} The print covers the entire surface of the ${apparel} including hood, sleeves, and front. Use soft, neutral lighting and a gray studio background. Do not include props, shadows, or extra subjects. Only one dog wearing the ${apparel} should appear.`;
 
     const image = await openai.images.generate({
       model: "dall-e-3",
