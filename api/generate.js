@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
 
   let apparelDescription = apparel;
   if (apparel === "pajama") {
-    apparelDescription = "a full-body dog pajama onesie suit";
+    apparelDescription = "a full-body dog onesie";
   } else if (apparel === "t shirt") {
     apparelDescription = "dog shirt sleeveless ";
   }
