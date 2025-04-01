@@ -38,14 +38,16 @@ module.exports = async (req, res) => {
 
     const pattern = patternDescription.choices[0].message.content;
 
+    const finalPrompt = `A full-body, high-quality studio photo of a happy Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie. The hoodie features a seamless all-over repeating pattern: ${pattern}. The word \"${text}\" is printed clearly across the chest of the hoodie in bold, bright lime-green capital letters. The hoodie looks soft and realistic, with natural fabric folds and texture, covering the hood, sleeves, and torso. Use soft, even lighting and a neutral light gray studio background.`;
+
     const image = await openai.images.generate({
       model: "dall-e-3",
-      prompt: `A full-body, high-quality studio photo of a happy Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie. The hoodie features a seamless all-over repeating pattern: ${pattern}. The word \"${text}\" is printed clearly across the chest of the hoodie in bold, bright lime-green capital letters. The hoodie looks soft and realistic, with natural fabric folds and texture, covering the hood, sleeves, and torso. Use soft, even lighting and a neutral light gray studio background.`,
+      prompt: finalPrompt,
       size: "1024x1024",
     });
 
     const imageUrl = image.data[0].url;
-    res.status(200).json({ imageUrl });
+    res.status(200).json({ imageUrl, prompt: finalPrompt });
   } catch (error) {
     console.error("❌ Error:", error);
     res.status(500).json({ error: error.message });
