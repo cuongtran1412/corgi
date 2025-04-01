@@ -38,7 +38,7 @@ module.exports = async (req, res) => {
 
     const pattern = patternDescription.choices[0].message.content;
 
-    const finalPrompt = `A full-body, high-quality studio photo of a happy Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie. The hoodie features a seamless all-over repeating pattern: ${pattern}. The pattern is dense and evenly distributed across the hoodie, including the hood, sleeves, and torso, leaving no empty areas. The word "${text}" is clearly visible on the hoodie as part of the design. Make sure it blends naturally with the style, color palette, and layout of the hoodie. The hoodie looks soft and realistic, with natural fabric folds and texture. Use soft, even lighting and a neutral light gray studio background. Show only one corgi wearing the hoodie. Do not include mockups, templates, props, sample swatches, or standalone garment photos.`;
+    const finalPrompt = `A full-body, high-quality studio photo of a happy Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie. The hoodie features a seamless all-over repeating pattern: ${pattern}. The pattern is dense and evenly distributed across the hoodie, including the hood, sleeves, and torso, leaving no empty areas. Include the word \"${text}\" clearly visible on the chest of the hoodie, integrated naturally into the design. The hoodie looks soft and realistic, with natural fabric folds and texture. Use soft, even lighting and a neutral light gray studio background. Do not include any elements in the background. Do not show standalone hoodie mockups.`;
 
     const image = await openai.images.generate({
       model: "dall-e-3",
