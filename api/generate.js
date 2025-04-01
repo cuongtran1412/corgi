@@ -30,7 +30,7 @@ module.exports = async (req, res) => {
   try {
     // Step 1: Generate pattern description using GPT
     const chat = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo', // you can change to gpt-4 if needed
+      model: 'gpt-4-turbo', // you can change to gpt-4 if needed
       messages: [
         {
           role: 'system',
