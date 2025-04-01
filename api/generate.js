@@ -1,81 +1,53 @@
-const { OpenAI } = require('openai');
+const { OpenAI } = require("openai");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Only POST requests allowed' });
-
-  let body = req.body;
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch (err) {
-      return res.status(400).json({ error: 'Invalid JSON body' });
-    }
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
   }
 
-  const { style, color, layout, background, mood, subject, text } = body;
-
-  if (!style || !color || !layout || !background || !mood || !subject) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Only POST requests allowed" });
   }
+
+  const { style, color, layout, background, mood, subject, text } = req.body;
 
   try {
-    // Step 1: Generate pattern description from preset options
-    const chat = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const patternDescription = await openai.chat.completions.create({
+      model: "gpt-4o",
       messages: [
         {
-          role: 'system',
-          content: 'You are a professional textile designer for fashion. Based on the following inputs, describe a vibrant, high-quality, seamless all-over print pattern suitable for hoodie printing.'
+          role: "system",
+          content:
+            "You are a professional textile surface designer. Generate a seamless all-over repeating pattern for printing on clothing based on the user request."
         },
         {
-          role: 'user',
-          content: `
-Generate a textile design pattern with the following characteristics:
-- Design Style: ${style}
-- Palette Style: ${color}
-- Pattern Layout: ${layout}
-- Background Setting: ${background}
-- Mood: ${mood}
-- Main Subject: ${subject}
-Avoid mentioning clothing or animals. Focus on describing the visual pattern using detailed artistic terms.
-          `.trim()
-        }
+          role: "user",
+          content: `Create a repeating all-over print pattern for textile printing on a hoodie. The theme is "${subject}" in a ${style} style. Use a ${color} color palette. The mood should feel ${mood}. Avoid drawing text, animals, or logos. Focus on seamless pattern layout optimized for fabric.`
+        },
       ],
-      max_tokens: 250,
+      max_tokens: 400,
     });
 
-    const pattern = chat.choices[0].message.content;
-
-    // Step 2: Create image of corgi wearing hoodie with that pattern
-    const imagePrompt = `
-A high-quality studio portrait of a Pembroke Welsh Corgi sitting and smiling, facing forward.
-The dog is wearing a hoodie that features a seamless, all-over print pattern: ${pattern}.
-The hoodie includes the text "${text || ''}" printed clearly on the chest in bold, stylish font.
-The pattern should fully wrap around the chest, arms, and hood.
-No additional dogs, no cartoon overlays, no design printed over the dog's fur.
-Photo should have realistic lighting, neutral studio background, and fabric texture visible on the hoodie.
-    `.trim();
+    const pattern = patternDescription.choices[0].message.content;
 
     const image = await openai.images.generate({
-      model: 'dall-e-3',
-      prompt: imagePrompt,
-      size: '1024x1024'
+      model: "dall-e-3",
+      prompt: `A full-body, high-quality studio photo of a happy Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie. The hoodie features a seamless all-over repeating pattern: ${pattern}. The word \"${text}\" is printed clearly across the chest of the hoodie in bold, bright lime-green capital letters. The hoodie looks soft and realistic, with natural fabric folds and texture, covering the hood, sleeves, and torso. Use soft, even lighting and a neutral light gray studio background.`,
+      size: "1024x1024",
     });
 
     const imageUrl = image.data[0].url;
     res.status(200).json({ imageUrl });
-
   } catch (error) {
-    console.error('❌ Error in generate.js:', error);
-    res.status(500).json({ error: error.message || 'Image generation failed' });
+    console.error("❌ Error:", error);
+    res.status(500).json({ error: error.message });
   }
 };
