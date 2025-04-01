@@ -17,19 +17,19 @@ module.exports = async (req, res) => {
     return res.status(405).json({ message: "Only POST requests allowed" });
   }
 
-  const { dogBreed, apparel, text, name } = req.body;
-
-  const prompt = `A full-body studio photo of a ${dogBreed} wearing a ${apparel} with an all-over print ${text} pattern and the word \"${name || ''}\" printed clearly on the ${apparel}. Use soft lighting, neutral gray background. Do not include any props, extra garments, or multiple subjects. Only the dog wearing the ${apparel} should appear.`;
+  const { apparel, breed, name, design } = req.body;
 
   try {
+    const finalPrompt = `A full-body studio photo of a ${breed} wearing a ${apparel} with an all-over print ${design} pattern. The word '${name}' is printed in large, bold capital letters across the center of the chest of the ${apparel}, clearly visible. Use soft lighting, neutral gray background. Do not include any props, multiple garments, or extra subjects. Only the dog wearing the ${apparel} should appear.`;
+
     const image = await openai.images.generate({
       model: "dall-e-3",
-      prompt,
+      prompt: finalPrompt,
       size: "1024x1024",
     });
 
     const imageUrl = image.data[0].url;
-    res.status(200).json({ imageUrl, prompt });
+    res.status(200).json({ imageUrl, prompt: finalPrompt });
   } catch (error) {
     console.error("❌ Error:", error);
     res.status(500).json({ error: error.message });
