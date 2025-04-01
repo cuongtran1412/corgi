@@ -28,26 +28,26 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Step 1: Generate pattern description using GPT
+    // Step 1: Generate pattern description from preset options
     const chat = await openai.chat.completions.create({
-      model: 'gpt-4-turbo', // you can change to gpt-4 if needed
+      model: 'gpt-4-turbo',
       messages: [
         {
           role: 'system',
-          content: 'You are a prompt engineer for an AI image generator. Describe the visual pattern for a hoodie based on user inputs.'
+          content: 'You are a visual pattern generator for clothing. Describe unique design patterns based on user inputs for hoodie printing.'
         },
         {
           role: 'user',
           content: `
-Create a hoodie design based on the following:
+Design a visual pattern based on:
 - Style: ${style}
-- Palette Style: ${color}
-- Layout: ${layout}
-- Background Setting: ${background}
+- Color Palette: ${color}
+- Pattern Layout: ${layout}
+- Background Theme: ${background}
 - Mood: ${mood}
-- Subject: ${subject}
-If any text is required, the phrase is: "${text || '[no text]'}".
-Describe it clearly as a printable pattern.
+- Main Subject: ${subject}
+Text on hoodie (if any): ${text || '[none]'}
+Keep it visual and suitable for printing on fabric.
           `.trim()
         }
       ],
@@ -56,26 +56,27 @@ Describe it clearly as a printable pattern.
 
     const pattern = chat.choices[0].message.content;
 
-    // Step 2: Generate DALL·E image prompt
+    // Step 2: Generate image prompt
     const imagePrompt = `
-A digital photograph of a Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie with an all-over print pattern.
-The hoodie design is: ${pattern}.
-The hoodie should cover the dog completely and clearly display the pattern across the chest, sleeves, and hood.
-${text ? `The hoodie should also include the text: "${text}" in bold on the chest.` : ''}
+A studio photo of a Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie with a design that features: ${pattern}.
+The hoodie should include the text "${text || ''}" clearly and centrally on the chest in bold font.
+The pattern should wrap around the chest, sleeves, and hood (all-over print).
+Do not include any other characters or designs on the hoodie.
+Neutral white background, soft lighting, realistic style.
     `.trim();
 
     // Step 3: Generate image using DALL·E
     const image = await openai.images.generate({
       model: 'dall-e-3',
       prompt: imagePrompt,
-      size: '1024x1024' // You can reduce it if needed
+      size: '1024x1024'
     });
 
     const imageUrl = image.data[0].url;
     res.status(200).json({ imageUrl });
 
   } catch (error) {
-    console.error('❌ Backend error:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    console.error('❌ Error in generate.js:', error);
+    res.status(500).json({ error: error.message || 'Image generation failed' });
   }
 };
