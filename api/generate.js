@@ -17,10 +17,16 @@ module.exports = async (req, res) => {
     return res.status(405).json({ message: "Only POST requests allowed" });
   }
 
-  const { apparel, breed, name, design } = req.body;
+  const { apparel, breed, design, name } = req.body;
 
   try {
-    const finalPrompt = `A full-body studio photo of a ${breed} wearing a ${apparel} with an all-over print ${design} pattern. The word '${name}' is printed in large, bold capital letters across the center of the chest of the ${apparel}, clearly visible. Use soft lighting, neutral gray background. Do not include any props, multiple garments, or extra subjects. Only the dog wearing the ${apparel} should appear.`;
+    let finalPrompt = `A full-body studio photo of a ${breed} wearing a ${apparel} with an all-over print ${design} pattern.`;
+
+    if (name && name.trim() !== "") {
+      finalPrompt += ` The word '${name}' is printed in large, bold capital letters across the center of the chest of the ${apparel}, clearly visible.`;
+    }
+
+    finalPrompt += " Use soft lighting, neutral gray background. Do not include any props, multiple garments, or extra subjects. Only the dog wearing the hoodie should appear.";
 
     const image = await openai.images.generate({
       model: "dall-e-3",
