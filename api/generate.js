@@ -20,16 +20,34 @@ module.exports = async (req, res) => {
   const { style, color, layout, background, mood, subject, text } = req.body;
 
   try {
-    const shortPrompt = `A full-body, high-quality studio photograph of a single Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie with a colorful seamless all-over print of ${color} ${style} ${subject} elements in a ${mood} mood. The pattern is dense and evenly covers the hoodie, including the hood, sleeves, and torso. The word \"${text}\" is printed in bold, bright lime-green capital letters across the chest. Use soft studio lighting, natural fabric folds, and a neutral gray background. Do not include any extra garments, mockups, or props. Only show the Corgi wearing the hoodie.`;
+    const patternDescription = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a professional textile surface designer. Generate a seamless all-over repeating pattern for printing on clothing based on the user request."
+        },
+        {
+          role: "user",
+          content: `Create a repeating all-over print pattern for textile printing on a hoodie. The theme is "${subject}" in a ${style} style. Use a ${color} color palette. The mood should feel ${mood}. Avoid drawing text, animals, or logos. Focus on seamless pattern layout optimized for fabric.`
+        },
+      ],
+      max_tokens: 600,
+    });
+
+    const pattern = patternDescription.choices[0].message.content;
+
+    const finalPrompt = `A full-body, high-quality studio photo of a happy Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie. The hoodie features a seamless all-over repeating pattern: ${pattern}. The pattern is dense and evenly distributed across the hoodie, including the hood, sleeves, and torso, leaving no empty areas. The word "${text}" is clearly visible on the hoodie as part of the design. Make sure it blends naturally with the style, color palette, and layout of the hoodie. The hoodie looks soft and realistic, with natural fabric folds and texture. Use soft, even lighting and a neutral light gray studio background. Show only one corgi wearing the hoodie. Do not include mockups, templates, props, sample swatches, or standalone garment photos.`;
 
     const image = await openai.images.generate({
       model: "dall-e-3",
-      prompt: shortPrompt,
+      prompt: finalPrompt,
       size: "1024x1024",
     });
 
     const imageUrl = image.data[0].url;
-    res.status(200).json({ imageUrl, prompt: shortPrompt });
+    res.status(200).json({ imageUrl, prompt: finalPrompt });
   } catch (error) {
     console.error("❌ Error:", error);
     res.status(500).json({ error: error.message });
