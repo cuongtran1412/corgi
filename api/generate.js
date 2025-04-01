@@ -30,42 +30,41 @@ module.exports = async (req, res) => {
   try {
     // Step 1: Generate pattern description from preset options
     const chat = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: 'You are a visual pattern generator for clothing. Describe unique design patterns based on user inputs for hoodie printing.'
+          content: 'You are a professional textile designer for fashion. Based on the following inputs, describe a vibrant, high-quality, seamless all-over print pattern suitable for hoodie printing.'
         },
         {
           role: 'user',
           content: `
-Design a visual pattern based on:
-- Style: ${style}
-- Color Palette: ${color}
+Generate a textile design pattern with the following characteristics:
+- Design Style: ${style}
+- Palette Style: ${color}
 - Pattern Layout: ${layout}
-- Background Theme: ${background}
+- Background Setting: ${background}
 - Mood: ${mood}
 - Main Subject: ${subject}
-Text on hoodie (if any): ${text || '[none]'}
-Keep it visual and suitable for printing on fabric.
+Avoid mentioning clothing or animals. Focus on describing the visual pattern using detailed artistic terms.
           `.trim()
         }
       ],
-      max_tokens: 150,
+      max_tokens: 250,
     });
 
     const pattern = chat.choices[0].message.content;
 
-    // Step 2: Generate image prompt
+    // Step 2: Create image of corgi wearing hoodie with that pattern
     const imagePrompt = `
-A studio photo of a Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie with a design that features: ${pattern}.
-The hoodie should include the text "${text || ''}" clearly and centrally on the chest in bold font.
-The pattern should wrap around the chest, sleeves, and hood (all-over print).
-Do not include any other characters or designs on the hoodie.
-Neutral white background, soft lighting, realistic style.
+A high-quality studio portrait of a Pembroke Welsh Corgi sitting and smiling, facing forward.
+The dog is wearing a hoodie that features a seamless, all-over print pattern: ${pattern}.
+The hoodie includes the text "${text || ''}" printed clearly on the chest in bold, stylish font.
+The pattern should fully wrap around the chest, arms, and hood.
+No additional dogs, no cartoon overlays, no design printed over the dog's fur.
+Photo should have realistic lighting, neutral studio background, and fabric texture visible on the hoodie.
     `.trim();
 
-    // Step 3: Generate image using DALL·E
     const image = await openai.images.generate({
       model: 'dall-e-3',
       prompt: imagePrompt,
