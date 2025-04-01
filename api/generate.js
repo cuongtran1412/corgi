@@ -26,19 +26,19 @@ module.exports = async (req, res) => {
         {
           role: "system",
           content:
-            "You are a professional textile surface designer. Generate a seamless all-over repeating pattern for printing on clothing based on the user request."
+            "You are a professional surface pattern designer. Based on the user's idea, describe a seamless all-over pattern for hoodie textile printing. Return a vivid, coherent pattern idea that can be visualized."
         },
         {
           role: "user",
-          content: `Create a repeating all-over print pattern for textile printing on a hoodie. The theme is "${subject}" in a ${style} style. Use a ${color} color palette. The mood should feel ${mood}. Avoid drawing text, animals, or logos. Focus on seamless pattern layout optimized for fabric.`
+          content: `Create a seamless all-over repeating pattern for hoodie printing. Theme: "${subject}". Style: ${style}. Color palette: ${color}. Mood: ${mood}. Background: ${background}. Avoid using text or animals. The pattern should be fabric-friendly, balanced, and visually rich.`
         },
       ],
-      max_tokens: 400,
+      max_tokens: 300,
     });
 
     const pattern = patternDescription.choices[0].message.content;
 
-    const finalPrompt = `A full-body, high-quality studio photo of a happy Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie. The hoodie features a seamless all-over repeating pattern: ${pattern}. The word \"${text}\" is printed clearly across the chest of the hoodie in bold, bright lime-green capital letters. The hoodie looks soft and realistic, with natural fabric folds and texture, covering the hood, sleeves, and torso. Use soft, even lighting and a neutral light gray studio background.`;
+    const finalPrompt = `A full-body, high-quality studio photo of a happy Pembroke Welsh Corgi sitting and facing forward, wearing a hoodie. The hoodie features a seamless all-over repeating pattern: ${pattern}. The word "${text}" is printed clearly across the chest of the hoodie in bold, bright lime-green capital letters. The hoodie looks soft and realistic, with natural fabric folds and texture, covering the hood, sleeves, and torso. Use soft, even lighting and a neutral light gray studio background.`;
 
     const image = await openai.images.generate({
       model: "dall-e-3",
