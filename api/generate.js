@@ -17,10 +17,12 @@ module.exports = async (req, res) => {
     return res.status(405).json({ message: "Only POST requests allowed" });
   }
 
-  const { apparel, breed, name, design } = req.body;
+  const { apparel = "hoodie", breed = "dog", name = "", design = "simple repeating" } = req.body;
 
   try {
-    const finalPrompt = `A full-body studio photo of a ${breed} wearing a ${apparel} with an all-over print ${design} pattern. The pattern is flat, clearly printable, and suitable for real fabric printing, avoiding 3D textures, gradients, or light effects. The word '${name}' is printed in large, bold capital letters at the center of the chest, clearly visible. The print covers the whole ${apparel} surface including hood, sleeves, and front. Use soft, neutral lighting and gray studio background. Do not include props, shadows, or extra subjects. Only one dog wearing the ${apparel} should appear.`;
+    const capitalizedName = name.trim() ? `The word '${name}' is printed in large, bold capital letters at the center of the chest, clearly visible.` : "";
+
+    const finalPrompt = `A full-body studio photo of a ${breed} wearing a ${apparel} with an all-over print ${design} pattern. The pattern is flat, clearly printable, and suitable for real fabric printing, avoiding 3D textures, gradients, or light effects. ${capitalizedName} The print covers the whole ${apparel} surface including hood, sleeves, and front. Use soft, neutral lighting and gray studio background. Do not include props, shadows, or extra subjects. Only one dog wearing the ${apparel} should appear.`;
 
     const image = await openai.images.generate({
       model: "dall-e-3",
