@@ -19,7 +19,7 @@ module.exports = async (req, res) => {
 
   const { dogBreed, apparel, text, name } = req.body;
 
-  const prompt = `A full-body studio photo of a ${dogBreed} wearing a ${apparel} with ${text} pattern and the word \"${name || ''}\" printed clearly on the ${apparel}. Use soft lighting, neutral gray background. Do not include any props, extra garments, or multiple subjects. Only the dog wearing the ${apparel} should appear.`;
+  const prompt = `A full-body studio photo of a ${dogBreed} wearing a ${apparel} with an all-over print ${text} pattern and the word \"${name || ''}\" printed clearly on the ${apparel}. Use soft lighting, neutral gray background. Do not include any props, extra garments, or multiple subjects. Only the dog wearing the ${apparel} should appear.`;
 
   try {
     const image = await openai.images.generate({
