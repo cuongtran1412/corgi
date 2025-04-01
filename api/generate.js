@@ -5,20 +5,15 @@ const openai = new OpenAI({
 });
 
 module.exports = async (req, res) => {
-  // ✅ CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*'); // Hoặc thay * bằng domain Shopify thật
+  // CORS headers for cross-origin requests (Shopify frontend)
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end(); // Preflight
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Only POST requests allowed' });
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Only POST requests allowed' });
-  }
-
-  // ✅ Parse body JSON nếu cần
+  // Parse JSON body
   let body = req.body;
   if (typeof body === 'string') {
     try {
@@ -28,40 +23,54 @@ module.exports = async (req, res) => {
     }
   }
 
-  const { prompt } = body;
+  const { style, color, layout, background, mood, subject, text } = body;
 
-  if (!prompt || prompt.trim() === '') {
-    return res.status(400).json({ error: 'Prompt is required' });
+  if (!style || !color || !layout || !background || !mood || !subject) {
+    return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    console.log('👉 Start GPT-3.5 generation');
+    // Use GPT-3.5 to expand prompt based on selected options
     const chat = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo', // ✅ Dùng model nhẹ để test nhanh
+      model: 'gpt-3.5-turbo',
       messages: [
-        { role: 'system', content: 'Describe a hoodie pattern based on user request.' },
-        { role: 'user', content: prompt }
+        {
+          role: 'system',
+          content: 'You are a prompt builder for an AI image generator. Your job is to write a creative and visual prompt based on user-selected style, color, layout, background, mood, subject, and optional text.'
+        },
+        {
+          role: 'user',
+          content: `
+Style: ${style}
+Color: ${color}
+Layout: ${layout}
+Background: ${background}
+Mood: ${mood}
+Subject: ${subject}
+Text on design: ${text || 'None'}
+
+Generate a clear, creative, and vivid prompt for an AI to generate a hoodie design featuring the subject in the selected style. Mention the text if provided.
+          `.trim()
+        }
       ],
-      max_tokens: 100,
+      max_tokens: 150,
     });
 
-    const pattern = chat.choices[0].message.content;
-    console.log('✅ GPT Done:', pattern);
+    const prompt = chat.choices[0].message.content;
 
-    console.log('👉 Start DALL·E image generation');
+    console.log('🧠 Final prompt:', prompt);
+
     const image = await openai.images.generate({
       model: 'dall-e-3',
-      prompt: `A Pembroke Welsh Corgi wearing a hoodie with this pattern: ${pattern}`,
-      size: '1024x1024',
+      prompt: prompt,
+      size: '1024x1024' // Use frontend CSS to display smaller (e.g. 256x256)
     });
 
     const imageUrl = image.data[0].url;
-    console.log('✅ DALL·E Done, image URL:', imageUrl);
-
     res.status(200).json({ imageUrl });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('❌ API error:', error);
     res.status(500).json({ error: error.message || 'Server error' });
   }
 };
