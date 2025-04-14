@@ -9,27 +9,14 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ message: "Only POST requests allowed" });
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ message: "Only POST requests allowed" });
-  }
-
-  const {
-    apparel = "hoodie",
-    dogBreed = "dog",
-    name = "",
-    text = "simple repeating"
-  } = req.body;
+  const { apparel = "hoodie", dogBreed = "dog", name = "", text = "simple repeating" } = req.body;
 
   let apparelDescription = apparel;
-  if (apparel === "pajama") {
-    apparelDescription = "a full-body dog pajama suit with zipper";
-  } else if (apparel === "t shirt") {
-    apparelDescription = "dog shirt sleeveless ";
-  }
+  if (apparel === "pajama") apparelDescription = "a full-body dog pajama suit with zipper";
+  else if (apparel === "t shirt") apparelDescription = "dog shirt sleeveless";
 
   try {
     const namePrompt = name.trim()
@@ -45,7 +32,17 @@ module.exports = async (req, res) => {
     });
 
     const imageUrl = image.data[0].url;
-    res.status(200).json({ imageUrl, prompt });
+
+    // 👉 Extract unique filename from DALL·E image URL
+    const urlParts = imageUrl.split("/");
+    const fileName = urlParts[urlParts.length - 1];
+    const imageId = fileName.split("?")[0].replace(/\.png|\.jpg/i, "");
+
+    res.status(200).json({
+      imageUrl,
+      imageId, // 👈 send back imageId for Shopify
+      prompt,
+    });
   } catch (error) {
     console.error("❌ Error:", error);
     res.status(500).json({ error: error.message });
