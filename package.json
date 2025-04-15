@@ -7,11 +7,9 @@
     "sharp": "^0.32.0",
     "node-fetch": "^2.6.9",
     "axios": "^1.6.7",
-    "form-data": "^4.0.0",
     "formdata-node": "4.3.2",
     "form-data-encoder": "2.0.2",
     "undici": "^6.10.0",
     "openai": "^4.15.0"
   }
 }
-
