@@ -79,7 +79,7 @@ module.exports = async function handler(req, res) {
     }, {});
 
     // Step 2: Upload binary to S3 URL
-const axios = require("axios");
+const https = require("https");
 const FormData = require("form-data");
 
 const form = new FormData();
@@ -91,18 +91,40 @@ form.append("file", optimizedBuffer, {
   contentType: "image/jpeg"
 });
 
-const headers = {
-  ...form.getHeaders(),
-  "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
-};
+const parsedUrl = new URL(uploadURL);
 
-const uploadRes = await axios.post(uploadURL, form, { headers });
+const uploadPromise = new Promise((resolve, reject) => {
+  const req = https.request({
+    method: "POST",
+    hostname: parsedUrl.hostname,
+    path: parsedUrl.pathname + parsedUrl.search,
+    headers: {
+      ...form.getHeaders(),
+      "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
+      // ❌ KHÔNG gửi Content-Length
+    }
+  }, (res) => {
+    let rawData = "";
+    res.setEncoding("utf8");
+    res.on("data", (chunk) => (rawData += chunk));
+    res.on("end", () => {
+      if (res.statusCode === 204 || res.statusCode === 201) {
+        resolve();
+      } else {
+        console.error("❌ GCS upload failed:", res.statusCode, rawData);
+        reject(new Error("Upload to GCS failed"));
+      }
+    });
+  });
 
-if (uploadRes.status !== 204 && uploadRes.status !== 201) {
-  console.error("❌ GCS Upload failed:", uploadRes.status, uploadRes.data);
-  throw new Error("Upload to GCS failed");
-}
+  req.on("error", (err) => {
+    console.error("❌ GCS upload request error:", err);
+    reject(err);
+  });
 
+  form.pipe(req);
+});
+await uploadPromise;
 
 
     // Step 3: Create file in Shopify
