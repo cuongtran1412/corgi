@@ -30,9 +30,10 @@ module.exports = async (req, res) => {
       {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'X-Shopify-Access-Token': process.env.SHOPIFY_ADMIN_TOKEN
-        },
+        }
+        ,
         body: JSON.stringify({
           file: {
             attachment: optimizedBuffer.toString('base64'),
