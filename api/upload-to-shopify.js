@@ -1,24 +1,19 @@
 import sharp from "sharp";
 
 export default async function handler(req, res) {
-  // ✅ CORS header cho mọi domain hoặc domain cụ thể
-  res.setHeader("Access-Control-Allow-Origin", "https://pawdiprints.com"); // hoặc "*"
+  / ✅ Cho phép CORS
+  res.setHeader("Access-Control-Allow-Origin", "*"); // hoặc domain cụ thể
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  // ✅ Trả về 200 cho preflight OPTIONS request
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ message: "Only POST requests allowed" });
-  }
+  // ✅ Bắt OPTIONS
+  if (req.method === "OPTIONS") return res.status(200).end();
+
+  // ✅ Bắt POST
+  if (req.method !== "POST") return res.status(405).json({ message: "Only POST requests allowed" });
 
   const { imageUrl } = req.body;
-
-  if (!imageUrl) {
-    return res.status(400).json({ error: "Missing imageUrl" });
-  }
+  if (!imageUrl) return res.status(400).json({ message: "imageUrl is required" });
 
   try {
     // 1. Fetch ảnh từ Dall·E
