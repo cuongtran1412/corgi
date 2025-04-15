@@ -1,5 +1,5 @@
-const sharp = require("sharp");
 const fetch = require("node-fetch");
+const sharp = require("sharp");
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "https://pawdiprints.com");
@@ -13,71 +13,132 @@ module.exports = async function handler(req, res) {
   if (!imageUrl) return res.status(400).json({ message: "imageUrl is required" });
 
   try {
-    // Fetch ảnh AI DALL·E với User-Agent giả lập trình duyệt
+    // Fetch original DALL·E image
     const imageRes = await fetch(imageUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
+      headers: { "User-Agent": "Mozilla/5.0" }
     });
-
-    if (!imageRes.ok) {
-      console.error("❌ Failed to fetch image:", imageRes.status);
-      return res.status(500).json({ error: "Failed to fetch image from DALL·E" });
-    }
+    if (!imageRes.ok) throw new Error("Failed to fetch image");
 
     const arrayBuffer = await imageRes.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    console.log("✅ Original image buffer size:", buffer.length);
-    if (buffer.length === 0) {
-      console.error("❌ Empty image buffer received");
-      return res.status(500).json({ error: "Image buffer is empty" });
-    }
-
     const optimizedBuffer = await sharp(buffer)
-      .resize({ width: 1024 }) // resize nếu ảnh lớn
-      .jpeg({ quality: 80 })   // nén nhẹ
+      .resize({ width: 1024 })
+      .jpeg({ quality: 80 })
       .toBuffer();
 
-    console.log("✅ Optimized image buffer size:", optimizedBuffer.length);
-    const base64Image = `data:image/jpeg;base64,${optimizedBuffer.toString("base64")}`;
+    // Step 1: Request staged upload
+    const mutation = `
+      mutation generateStagedUpload($input: [StagedUploadInput!]!) {
+        stagedUploadsCreate(input: $input) {
+          stagedTargets {
+            url
+            resourceUrl
+            parameters {
+              name
+              value
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
 
-    const shopifyRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/files.json`, {
-      method: "POST",
+    const stagedUploadRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/graphql.json`, {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ADMIN_TOKEN
       },
       body: JSON.stringify({
-        file: {
-          attachment: base64Image,
-          filename: `dog-ai-${Date.now()}.jpg`,
-          mime_type: "image/jpeg"
+        query: mutation,
+        variables: {
+          input: [
+            {
+              filename: `dog-ai-${Date.now()}.jpg`,
+              mimeType: "image/jpeg",
+              resource: "FILE",
+              fileSize: optimizedBuffer.length
+            }
+          ]
         }
       })
     });
 
-    const raw = await shopifyRes.text();
-    if (!shopifyRes.ok) {
-      console.error("❌ Shopify upload failed:", shopifyRes.status, raw);
-      return res.status(shopifyRes.status).json({ error: raw });
-    }
+    const { data, errors } = await stagedUploadRes.json();
+    if (errors) throw new Error(JSON.stringify(errors));
 
-    const uploaded = JSON.parse(raw);
-    const files = uploaded?.files;
-    if (!files || files.length === 0) {
-      console.error("❌ No file returned from Shopify", uploaded);
-      return res.status(500).json({ error: "No file returned from Shopify" });
-    }
+    const target = data.stagedUploadsCreate.stagedTargets[0];
+    const uploadURL = target.url;
+    const uploadParams = target.parameters.reduce((acc, param) => {
+      acc[param.name] = param.value;
+      return acc;
+    }, {});
 
-    const shopifyImageUrl = files[0].url;
-    console.log("✅ Upload success:", shopifyImageUrl);
+    // Step 2: Upload binary to S3 URL
+    const FormData = require('form-data');
+    const form = new FormData();
+    for (const key in uploadParams) {
+      form.append(key, uploadParams[key]);
+    }
+    form.append('file', optimizedBuffer, {
+      filename: `dog-ai-${Date.now()}.jpg`,
+      contentType: 'image/jpeg'
+    });
+
+    const uploadRes = await fetch(uploadURL, {
+      method: 'POST',
+      body: form
+    });
+
+    if (!uploadRes.ok) throw new Error("Upload to S3 failed");
+
+    // Step 3: Create file in Shopify
+    const finalizeMutation = `
+      mutation fileCreate($files: [FileCreateInput!]!) {
+        fileCreate(files: $files) {
+          files {
+            url
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const finalizeRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ADMIN_TOKEN
+      },
+      body: JSON.stringify({
+        query: finalizeMutation,
+        variables: {
+          files: [
+            {
+              originalSource: target.resourceUrl,
+              alt: "AI-generated dog image"
+            }
+          ]
+        }
+      })
+    });
+
+    const finalizeData = await finalizeRes.json();
+    const shopifyImageUrl = finalizeData?.data?.fileCreate?.files?.[0]?.url;
+
+    if (!shopifyImageUrl) throw new Error("Shopify fileCreate failed");
 
     return res.status(200).json({ shopifyImageUrl });
 
   } catch (err) {
-    console.error("❌ Upload error:", err);
+    console.error("❌ Final error:", err);
     return res.status(500).json({ error: err.message });
   }
 };
