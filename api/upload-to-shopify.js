@@ -1,63 +1,44 @@
-const fetch = require('node-fetch');
+const sharp = require("sharp");
+const fetch = require("node-fetch");
 
-module.exports = async (req, res) => {
-  const { imageUrl, fileName = 'ai-image.png' } = req.body;
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).end();
 
-  if (!imageUrl) {
-    return res.status(400).json({ error: 'Missing imageUrl' });
-  }
+  const { imageUrl } = req.body;
 
   try {
-    // Lấy ảnh từ DALL·E link
-    const imageResponse = await fetch(imageUrl);
-    const buffer = await imageResponse.buffer();
-    const base64Image = buffer.toString('base64');
+    // 1. Fetch ảnh từ Dall·E URL
+    const imageRes = await fetch(imageUrl);
+    const buffer = await imageRes.buffer();
 
-    // Tạo mutation GraphQL để upload file vào Shopify
-    const mutation = `
-      mutation fileCreate($files: [FileCreateInput!]!) {
-        fileCreate(files: $files) {
-          files {
-            url
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }
-    `;
+    // 2. Resize & optimize nếu cần
+    const optimizedBuffer = await sharp(buffer)
+      .resize({ width: 1024 })
+      .toFormat("jpeg")
+      .toBuffer();
 
-    const shopifyResponse = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2023-07/graphql.json`, {
+    // 3. Upload lên Shopify Files API
+    const shopifyRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/files.json`, {
       method: 'POST',
       headers: {
-        'X-Shopify-Access-Token': process.env.SHOPIFY_ADMIN_TOKEN,
         'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ADMIN_TOKEN
       },
       body: JSON.stringify({
-        query: mutation,
-        variables: {
-          files: [
-            {
-              originalSource: `data:image/png;base64,${base64Image}`,
-              contentType: 'IMAGE',
-              filename: fileName,
-            },
-          ],
-        },
-      }),
+        file: {
+          attachment: optimizedBuffer.toString('base64'),
+          filename: `dog-ai-${Date.now()}.jpg`,
+          mime_type: "image/jpeg"
+        }
+      })
     });
 
-    const result = await shopifyResponse.json();
-    const uploadedUrl = result.data?.fileCreate?.files?.[0]?.url;
+    const uploaded = await shopifyRes.json();
+    const shopifyImageUrl = uploaded?.file?.url;
 
-    if (!uploadedUrl) {
-      return res.status(500).json({ error: 'Failed to upload image', details: result });
-    }
-
-    return res.status(200).json({ shopifyImageUrl: uploadedUrl });
+    return res.status(200).json({ shopifyImageUrl });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error', details: err.message });
+    console.error("Upload error:", err);
+    return res.status(500).json({ error: err.message });
   }
-};
+}
