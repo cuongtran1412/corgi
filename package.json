@@ -7,3 +7,6 @@
     "openai": "^4.15.0"
   }
 }
+"dependencies": {
+  "sharp": "^0.32.0" // hoặc phiên bản mới nhất
+}
