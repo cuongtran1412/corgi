@@ -73,10 +73,19 @@ module.exports = async function handler(req, res) {
 
     const target = data.stagedUploadsCreate.stagedTargets[0];
     const uploadURL = target.url;
-    const uploadParams = target.parameters.reduce((acc, param) => {
-      acc[param.name] = param.value;
-      return acc;
-    }, {});
+    const parameters = target.parameters; // giữ nguyên mảng, đúng thứ tự
+const form = new FormData();
+
+// 👇 Gắn từng param theo đúng thứ tự trả về
+parameters.forEach(param => {
+  form.append(param.name, param.value);
+});
+
+form.append("file", optimizedBuffer, {
+  filename: `dog-ai-${Date.now()}.jpg`,
+  contentType: "image/jpeg"
+});
+, {});
 
     // Step 2: Upload binary to S3 URL
 const https = require("https");
