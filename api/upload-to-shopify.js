@@ -1,3 +1,4 @@
+
 import sharp from "sharp";
 
 export default async function handler(req, res) {
@@ -11,7 +12,8 @@ export default async function handler(req, res) {
 
   // ✅ Bắt POST
   if (req.method !== "POST") return res.status(405).json({ message: "Only POST requests allowed" });
-
+  // ✅ LOG kiểm tra thật sự có vào handler không
+  console.log("🐶 Upload API HIT at:", new Date().toISOString());
   const { imageUrl } = req.body;
   if (!imageUrl) return res.status(400).json({ message: "imageUrl is required" });
 
