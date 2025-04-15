@@ -5,7 +5,7 @@
   "license": "MIT",
   "dependencies": {
     "sharp": "^0.32.0",
-    "node-fetch": "^3.3.2",
+    "node-fetch": "^2.6.9",
     "openai": "^4.15.0"
   }
 }
