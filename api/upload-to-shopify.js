@@ -15,16 +15,40 @@ module.exports = async function handler(req, res) {
   if (!imageUrl) return res.status(400).json({ message: "imageUrl is required" });
 
   try {
+    // Step 1: Fetch and optimize image
     const imageRes = await fetch(imageUrl, {
       headers: { "User-Agent": "Mozilla/5.0" }
     });
     if (!imageRes.ok) throw new Error("Failed to fetch image");
 
     const buffer = Buffer.from(await imageRes.arrayBuffer());
-    const optimizedBuffer = await sharp(buffer).resize({ width: 1024 }).jpeg({ quality: 80 }).toBuffer();
+    const optimizedBuffer = await sharp(buffer)
+      .resize({ width: 1024 })
+      .jpeg({ quality: 80 })
+      .toBuffer();
 
-    // Step 1: Get staged upload target from Shopify
-    const filename = `dog-ai-${Date.now()}.jpg`;
+    const fileName = `dog-ai-${Date.now()}.jpg`;
+
+    // Step 2: Ask Shopify for staged upload URL
+    const stagedUploadMutation = `
+      mutation generateStagedUpload($input: [StagedUploadInput!]!) {
+        stagedUploadsCreate(input: $input) {
+          stagedTargets {
+            url
+            resourceUrl
+            parameters {
+              name
+              value
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
     const stagedUploadRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/graphql.json`, {
       method: "POST",
       headers: {
@@ -32,66 +56,85 @@ module.exports = async function handler(req, res) {
         "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN
       },
       body: JSON.stringify({
-        query: `
-          mutation generateStagedUpload($input: [StagedUploadInput!]!) {
-            stagedUploadsCreate(input: $input) {
-              stagedTargets {
-                url
-                resourceUrl
-                parameters { name value }
-              }
-              userErrors { field message }
-            }
-          }
-        `,
+        query: stagedUploadMutation,
         variables: {
-          input: [{
-            filename,
-            mimeType: "image/jpeg",
-            resource: "FILE",
-            fileSize: optimizedBuffer.length.toString()
-          }]
+          input: [
+            {
+              filename: fileName,
+              mimeType: "image/jpeg",
+              resource: "FILE",
+              fileSize: optimizedBuffer.length.toString()
+            }
+          ]
         }
       })
     });
 
-    const stagedData = await stagedUploadRes.json();
-    const target = stagedData.data.stagedUploadsCreate.stagedTargets[0];
+    const { data, errors } = await stagedUploadRes.json();
+    if (errors || data.stagedUploadsCreate.userErrors.length > 0) {
+      throw new Error("Shopify staged upload error: " + JSON.stringify(errors || data.stagedUploadsCreate.userErrors));
+    }
+
+    const target = data.stagedUploadsCreate.stagedTargets[0];
     const uploadURL = new URL(target.url);
-    const params = target.parameters;
+    const resourceUrl = target.resourceUrl;
 
-    // Step 2: Upload to Shopify's GCS
+    // Step 3: Upload to GCS using raw HTTPS stream
     const form = new FormData();
-    params.forEach(p => form.append(p.name, p.value));
-    form.append("file", optimizedBuffer, { filename, contentType: "image/jpeg" });
-
-    await new Promise((resolve, reject) => {
-      const req = https.request({
-        method: "POST",
-        hostname: uploadURL.hostname,
-        path: uploadURL.pathname + uploadURL.search,
-        headers: {
-          ...form.getHeaders(),
-          "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
-        }
-      }, res => {
-        let raw = "";
-        res.on("data", chunk => (raw += chunk));
-        res.on("end", () => {
-          if (res.statusCode === 204 || res.statusCode === 201) {
-            resolve();
-          } else {
-            console.error("❌ GCS upload failed:", res.statusCode, raw);
-            reject(new Error("GCS upload failed"));
-          }
-        });
-      });
-
-      req.on("error", err => reject(err));
-      form.pipe(req);
+    target.parameters.forEach(param => {
+      form.append(param.name, param.value);
+    });
+    form.append("file", optimizedBuffer, {
+      filename: fileName,
+      contentType: "image/jpeg"
     });
 
-    // Step 3: Finalize file on Shopify
+    const uploadHeaders = {
+      ...form.getHeaders(),
+      "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
+    };
+
+    const gcsUpload = () =>
+      new Promise((resolve, reject) => {
+        const req = https.request({
+          method: "POST",
+          hostname: uploadURL.hostname,
+          path: uploadURL.pathname + uploadURL.search,
+          headers: uploadHeaders
+        }, (res) => {
+          let raw = "";
+          res.on("data", chunk => raw += chunk);
+          res.on("end", () => {
+            if (res.statusCode === 204 || res.statusCode === 201) {
+              resolve();
+            } else {
+              console.error("❌ GCS upload failed:", res.statusCode, raw);
+              reject(new Error("Upload to GCS failed"));
+            }
+          });
+        });
+
+        req.on("error", reject);
+        form.pipe(req);
+      });
+
+    await gcsUpload();
+
+    // Step 4: Finalize in Shopify
+    const finalizeMutation = `
+      mutation fileCreate($files: [FileCreateInput!]!) {
+        fileCreate(files: $files) {
+          files {
+            url
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
     const finalizeRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/graphql.json`, {
       method: "POST",
       headers: {
@@ -99,29 +142,19 @@ module.exports = async function handler(req, res) {
         "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN
       },
       body: JSON.stringify({
-        query: `
-          mutation fileCreate($files: [FileCreateInput!]!) {
-            fileCreate(files: $files) {
-              files { url }
-              userErrors { field message }
-            }
-          }
-        `,
+        query: finalizeMutation,
         variables: {
-          files: [{
-            originalSource: target.resourceUrl,
-            alt: "AI-generated dog image"
-          }]
+          files: [{ originalSource: resourceUrl, alt: "AI-generated dog image" }]
         }
       })
     });
 
-    const finalData = await finalizeRes.json();
-    const shopifyImageUrl = finalData.data.fileCreate.files[0]?.url;
-    if (!shopifyImageUrl) throw new Error("fileCreate failed");
+    const finalizeData = await finalizeRes.json();
+    const shopifyImageUrl = finalizeData?.data?.fileCreate?.files?.[0]?.url;
+
+    if (!shopifyImageUrl) throw new Error("❌ Finalize failed: No URL returned");
 
     return res.status(200).json({ shopifyImageUrl });
-
   } catch (err) {
     console.error("❌ Final error:", err);
     return res.status(500).json({ error: err.message });
