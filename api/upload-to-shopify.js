@@ -45,12 +45,22 @@ module.exports = async (req, res) => {
 
     const text = await shopifyRes.text();
 
-    if (!shopifyRes.ok) {
-      console.error("❌ Shopify upload failed:", text);
-      return res.status(500).json({ error: 'Upload to Shopify failed', details: text });
-    }
+    const text = await shopifyRes.text();
 
-    const uploaded = JSON.parse(text);
+console.log('📦 Shopify raw response:', text);
+
+if (!shopifyRes.ok) {
+  console.error("❌ Shopify upload failed:", shopifyRes.status, text);
+  return res.status(500).json({ error: 'Upload to Shopify failed', status: shopifyRes.status, details: text });
+}
+
+let uploaded;
+try {
+  uploaded = JSON.parse(text);
+} catch (err) {
+  return res.status(500).json({ error: 'JSON parse error', raw: text });
+}
+
     const shopifyImageUrl = uploaded?.file?.url;
 
     return res.status(200).json({ shopifyImageUrl });
