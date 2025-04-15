@@ -1,13 +1,8 @@
 import sharp from "sharp";
 
-// ✅ Fix CORS for Shopify frontend
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
   if (req.method === "OPTIONS") {
-    return res.status(200).end(); // preflight check từ trình duyệt
+    return res.status(200).end();
   }
 
   if (req.method !== "POST") {
@@ -26,13 +21,13 @@ export default async function handler(req, res) {
     const arrayBuffer = await imageRes.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 2. Resize bằng sharp
+    // 2. Dùng Sharp resize & convert JPEG
     const optimizedBuffer = await sharp(buffer)
       .resize({ width: 1024 })
       .jpeg({ quality: 80 })
       .toBuffer();
 
-    // 3. Upload lên Shopify Files API
+    // 3. Upload lên Shopify
     const shopifyRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/files.json`, {
       method: 'POST',
       headers: {
@@ -43,13 +38,12 @@ export default async function handler(req, res) {
         file: {
           attachment: optimizedBuffer.toString("base64"),
           filename: `dog-ai-${Date.now()}.jpg`,
-          
+          mime_type: "image/jpeg"
         }
       })
     });
 
-    const raw = await shopifyRes.text();
-
+    const raw = await shopifyRes.text(); // Đọc raw response
     if (!shopifyRes.ok) {
       console.error("❌ Shopify upload failed:", shopifyRes.status, raw);
       return res.status(shopifyRes.status).json({ error: raw });
