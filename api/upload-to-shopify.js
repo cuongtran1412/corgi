@@ -1,8 +1,13 @@
 import sharp from "sharp";
 
+// ✅ Fix CORS for Shopify frontend
 export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
   if (req.method === "OPTIONS") {
-    return res.status(200).end();
+    return res.status(200).end(); // preflight check từ trình duyệt
   }
 
   if (req.method !== "POST") {
@@ -21,13 +26,13 @@ export default async function handler(req, res) {
     const arrayBuffer = await imageRes.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 2. Dùng Sharp resize & convert JPEG
+    // 2. Resize bằng sharp
     const optimizedBuffer = await sharp(buffer)
       .resize({ width: 1024 })
       .jpeg({ quality: 80 })
       .toBuffer();
 
-    // 3. Upload lên Shopify
+    // 3. Upload lên Shopify Files API
     const shopifyRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/files.json`, {
       method: 'POST',
       headers: {
@@ -43,7 +48,8 @@ export default async function handler(req, res) {
       })
     });
 
-    const raw = await shopifyRes.text(); // Đọc raw response
+    const raw = await shopifyRes.text();
+
     if (!shopifyRes.ok) {
       console.error("❌ Shopify upload failed:", shopifyRes.status, raw);
       return res.status(shopifyRes.status).json({ error: raw });
