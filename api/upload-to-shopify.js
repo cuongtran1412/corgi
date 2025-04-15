@@ -40,7 +40,7 @@ module.exports = async function handler(req, res) {
       .toBuffer();
 
     console.log("✅ Optimized image buffer size:", optimizedBuffer.length);
-    const base64Image = optimizedBuffer.toString("base64");
+    const base64Image = `data:image/jpeg;base64,${optimizedBuffer.toString("base64")}`;
 
     const shopifyRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/files.json`, {
       method: "POST",
