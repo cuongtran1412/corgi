@@ -2,7 +2,7 @@ import sharp from "sharp";
 
 export default async function handler(req, res) {
   / ✅ Cho phép CORS
-  res.setHeader("Access-Control-Allow-Origin", "*"); // hoặc domain cụ thể
+  res.setHeader("Access-Control-Allow-Origin", ""https://pawdiprints.com""); // hoặc domain cụ thể
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
