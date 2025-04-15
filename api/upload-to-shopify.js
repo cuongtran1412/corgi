@@ -1,7 +1,8 @@
 const sharp = require("sharp");
-const fetch = require("node-fetch");
 
 module.exports = async (req, res) => {
+  const fetch = (await import('node-fetch')).default;
+
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -12,18 +13,15 @@ module.exports = async (req, res) => {
   const { imageUrl } = req.body;
 
   try {
-    // Fetch image
     const imageRes = await fetch(imageUrl);
     const arrayBuffer = await imageRes.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Optimize
     const optimizedBuffer = await sharp(buffer)
       .resize({ width: 1024 })
       .toFormat("jpeg")
       .toBuffer();
 
-    // Upload to Shopify
     const shopifyRes = await fetch(
       `https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/files.json`,
       {
