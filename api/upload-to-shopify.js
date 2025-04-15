@@ -78,42 +78,46 @@ module.exports = async function handler(req, res) {
     const parameters = target.parameters;
 
     // Step 3: Upload to Shopify GCS using form-data
-    const form = new FormData();
-    for (const param of parameters) {
-      form.append(param.name, param.value);
-    }
-    form.append("file", optimizedBuffer, {
-      filename: `dog-ai-${Date.now()}.jpg`,
-      contentType: "image/jpeg"
-    });
+    const https = require("https");
+const FormData = require("form-data");
 
-    const uploadOptions = {
-      method: "POST",
-      hostname: uploadURL.hostname,
-      path: uploadURL.pathname + uploadURL.search,
-      headers: {
-        ...form.getHeaders(),
-        "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
-        // ❌ KHÔNG set Content-Length để tránh lỗi SignatureDoesNotMatch
+const form = new FormData();
+parameters.forEach(param => {
+  form.append(param.name, param.value);
+});
+form.append("file", optimizedBuffer, {
+  filename: `dog-ai-${Date.now()}.jpg`,
+  contentType: "image/jpeg"
+});
+
+const uploadOptions = {
+  method: "POST",
+  hostname: uploadURL.hostname,
+  path: uploadURL.pathname + uploadURL.search,
+  headers: {
+    ...form.getHeaders(),
+    "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
+    // KHÔNG gửi Content-Length — để form-data tự xử lý!
+  }
+};
+
+await new Promise((resolve, reject) => {
+  const req = https.request(uploadOptions, (res2) => {
+    let raw = "";
+    res2.on("data", chunk => raw += chunk);
+    res2.on("end", () => {
+      if (res2.statusCode !== 204 && res2.statusCode !== 201) {
+        console.error("❌ GCS upload failed:", res2.statusCode, raw);
+        return reject(new Error("Upload to GCS failed"));
       }
-    };
-
-    await new Promise((resolve, reject) => {
-      const req = https.request(uploadOptions, (res2) => {
-        let raw = "";
-        res2.on("data", chunk => raw += chunk);
-        res2.on("end", () => {
-          if (res2.statusCode !== 204 && res2.statusCode !== 201) {
-            console.error("❌ GCS upload failed:", res2.statusCode, raw);
-            return reject(new Error("Upload to GCS failed"));
-          }
-          resolve();
-        });
-      });
-
-      req.on("error", reject);
-      form.pipe(req);
+      resolve();
     });
+  });
+
+  req.on("error", reject);
+  form.pipe(req);
+});
+
 
     // Step 4: Register file in Shopify
     const finalizeMutation = `
