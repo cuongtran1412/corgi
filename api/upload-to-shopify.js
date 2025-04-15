@@ -45,8 +45,6 @@ module.exports = async (req, res) => {
 
     const text = await shopifyRes.text();
 
-    const text = await shopifyRes.text();
-
 console.log('📦 Shopify raw response:', text);
 
 if (!shopifyRes.ok) {
