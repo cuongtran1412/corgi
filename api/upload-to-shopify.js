@@ -1,5 +1,7 @@
 const fetch = require("node-fetch");
 const sharp = require("sharp");
+const https = require("https");
+const FormData = require("form-data");
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "https://pawdiprints.com");
@@ -13,7 +15,7 @@ module.exports = async function handler(req, res) {
   if (!imageUrl) return res.status(400).json({ message: "imageUrl is required" });
 
   try {
-    // Fetch original DALL·E image
+    // Step 1: Download image and optimize
     const imageRes = await fetch(imageUrl, {
       headers: { "User-Agent": "Mozilla/5.0" }
     });
@@ -27,7 +29,7 @@ module.exports = async function handler(req, res) {
       .jpeg({ quality: 80 })
       .toBuffer();
 
-    // Step 1: Request staged upload
+    // Step 2: Get staged upload target
     const mutation = `
       mutation generateStagedUpload($input: [StagedUploadInput!]!) {
         stagedUploadsCreate(input: $input) {
@@ -48,10 +50,10 @@ module.exports = async function handler(req, res) {
     `;
 
     const stagedUploadRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/graphql.json`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': process.env.SHOPIFY_ADMIN_TOKEN
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN
       },
       body: JSON.stringify({
         query: mutation,
@@ -73,70 +75,56 @@ module.exports = async function handler(req, res) {
 
     const target = data.stagedUploadsCreate.stagedTargets[0];
     const uploadURL = target.url;
-    const parameters = target.parameters; // giữ nguyên mảng, đúng thứ tự
-const form = new FormData();
+    const parameters = target.parameters;
 
-// 👇 Gắn từng param theo đúng thứ tự trả về
-parameters.forEach(param => {
-  form.append(param.name, param.value);
-});
-
-form.append("file", optimizedBuffer, {
-  filename: `dog-ai-${Date.now()}.jpg`,
-  contentType: "image/jpeg"
-});
-, {});
-
-    // Step 2: Upload binary to S3 URL
-const https = require("https");
-const FormData = require("form-data");
-
-const form = new FormData();
-for (const key in uploadParams) {
-  form.append(key, uploadParams[key]);
-}
-form.append("file", optimizedBuffer, {
-  filename: `dog-ai-${Date.now()}.jpg`,
-  contentType: "image/jpeg"
-});
-
-const parsedUrl = new URL(uploadURL);
-
-const uploadPromise = new Promise((resolve, reject) => {
-  const req = https.request({
-    method: "POST",
-    hostname: parsedUrl.hostname,
-    path: parsedUrl.pathname + parsedUrl.search,
-    headers: {
-      ...form.getHeaders(),
-      "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
-      // ❌ KHÔNG gửi Content-Length
-    }
-  }, (res) => {
-    let rawData = "";
-    res.setEncoding("utf8");
-    res.on("data", (chunk) => (rawData += chunk));
-    res.on("end", () => {
-      if (res.statusCode === 204 || res.statusCode === 201) {
-        resolve();
-      } else {
-        console.error("❌ GCS upload failed:", res.statusCode, rawData);
-        reject(new Error("Upload to GCS failed"));
-      }
+    // Step 3: Upload image to GCS (Google Cloud Storage)
+    const form = new FormData();
+    parameters.forEach(param => {
+      form.append(param.name, param.value);
     });
-  });
+    form.append("file", optimizedBuffer, {
+      filename: `dog-ai-${Date.now()}.jpg`,
+      contentType: "image/jpeg"
+    });
 
-  req.on("error", (err) => {
-    console.error("❌ GCS upload request error:", err);
-    reject(err);
-  });
+    const parsedUrl = new URL(uploadURL);
+    const uploadPromise = new Promise((resolve, reject) => {
+      const req = https.request(
+        {
+          method: "POST",
+          hostname: parsedUrl.hostname,
+          path: parsedUrl.pathname + parsedUrl.search,
+          headers: {
+            ...form.getHeaders(),
+            "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
+          }
+        },
+        (resStream) => {
+          let rawData = "";
+          resStream.setEncoding("utf8");
+          resStream.on("data", chunk => rawData += chunk);
+          resStream.on("end", () => {
+            if (resStream.statusCode === 204 || resStream.statusCode === 201) {
+              resolve();
+            } else {
+              console.error("❌ GCS upload failed:", resStream.statusCode, rawData);
+              reject(new Error("Upload to GCS failed"));
+            }
+          });
+        }
+      );
 
-  form.pipe(req);
-});
-await uploadPromise;
+      req.on("error", err => {
+        console.error("❌ GCS upload request error:", err);
+        reject(err);
+      });
 
+      form.pipe(req);
+    });
 
-    // Step 3: Create file in Shopify
+    await uploadPromise;
+
+    // Step 4: Register file in Shopify
     const finalizeMutation = `
       mutation fileCreate($files: [FileCreateInput!]!) {
         fileCreate(files: $files) {
@@ -152,10 +140,10 @@ await uploadPromise;
     `;
 
     const finalizeRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/graphql.json`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': process.env.SHOPIFY_ADMIN_TOKEN
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN
       },
       body: JSON.stringify({
         query: finalizeMutation,
