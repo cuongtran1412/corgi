@@ -1,25 +1,32 @@
 const sharp = require("sharp");
 
 module.exports = async (req, res) => {
+  // Chặn method khác ngoài POST
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
   const { imageUrl } = req.body;
-  if (!imageUrl) return res.status(400).json({ error: "Missing imageUrl" });
+  if (!imageUrl) {
+    return res.status(400).json({ error: "Missing imageUrl in request body" });
+  }
 
   try {
-    const fetch = (await import('node-fetch')).default;
+    // Dùng dynamic import vì node-fetch là ESM
+    const fetch = (await import("node-fetch")).default;
 
+    // Tải ảnh từ Dall·E
     const imageRes = await fetch(imageUrl);
     const buffer = await imageRes.buffer();
 
+    // Resize/optimize
     const optimizedBuffer = await sharp(buffer)
       .resize({ width: 1024 })
       .jpeg({ quality: 80 })
       .toBuffer();
 
+    // Upload lên Shopify Files API
     const shopifyRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/files.json`, {
       method: 'POST',
       headers: {
@@ -35,16 +42,17 @@ module.exports = async (req, res) => {
       })
     });
 
-    const data = await shopifyRes.json();
-    const shopifyImageUrl = data?.file?.url;
+    const result = await shopifyRes.json();
+    const shopifyImageUrl = result?.file?.url;
 
     if (!shopifyImageUrl) {
-      return res.status(500).json({ error: "Upload failed", details: data });
+      return res.status(500).json({ error: "Shopify upload failed", details: result });
     }
 
-    res.status(200).json({ shopifyImageUrl });
+    return res.status(200).json({ shopifyImageUrl });
+
   } catch (err) {
-    console.error("Upload error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("❌ Upload error:", err);
+    return res.status(500).json({ error: err.message });
   }
 };
