@@ -43,7 +43,7 @@ export default async function handler(req, res) {
         file: {
           attachment: optimizedBuffer.toString("base64"),
           filename: `dog-ai-${Date.now()}.jpg`,
-          mime_type: "image/jpeg"
+          
         }
       })
     });
