@@ -1,9 +1,7 @@
 const fetch = require("node-fetch");
 const sharp = require("sharp");
 const https = require("https");
-const { FormData } = require("formdata-node");
-const { Readable } = require("stream");
-const { Blob } = require("buffer");
+const FormData = require("form-data");
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "https://pawdiprints.com");
@@ -17,7 +15,10 @@ module.exports = async function handler(req, res) {
   if (!imageUrl) return res.status(400).json({ message: "imageUrl is required" });
 
   try {
-    const imageRes = await fetch(imageUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    // Step 1: Download and optimize image
+    const imageRes = await fetch(imageUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
     if (!imageRes.ok) throw new Error("Failed to fetch image");
 
     const arrayBuffer = await imageRes.arrayBuffer();
@@ -28,6 +29,7 @@ module.exports = async function handler(req, res) {
       .jpeg({ quality: 80 })
       .toBuffer();
 
+    // Step 2: Get staged upload target
     const stagedUploadMutation = `
       mutation generateStagedUpload($input: [StagedUploadInput!]!) {
         stagedUploadsCreate(input: $input) {
@@ -73,35 +75,36 @@ module.exports = async function handler(req, res) {
 
     const target = data.stagedUploadsCreate.stagedTargets[0];
     const uploadURL = new URL(target.url);
-    const params = target.parameters;
+    const parameters = target.parameters;
 
+    // Step 3: Upload to Shopify GCS using form-data
     const form = new FormData();
-    for (const p of params) {
-      form.append(p.name, p.value);
+    for (const param of parameters) {
+      form.append(param.name, param.value);
     }
+    form.append("file", optimizedBuffer, {
+      filename: `dog-ai-${Date.now()}.jpg`,
+      contentType: "image/jpeg"
+    });
 
-    const blob = new Blob([optimizedBuffer], { type: "image/jpeg" });
-    form.append("file", blob, `dog-ai-${Date.now()}.jpg`);
-
-    const boundary = form._boundary;
-    const requestOptions = {
+    const uploadOptions = {
       method: "POST",
       hostname: uploadURL.hostname,
       path: uploadURL.pathname + uploadURL.search,
       headers: {
-        ...form.headers,
+        ...form.getHeaders(),
         "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
-        // KHÔNG GỬI Content-Length
+        // ❌ KHÔNG set Content-Length để tránh lỗi SignatureDoesNotMatch
       }
     };
 
     await new Promise((resolve, reject) => {
-      const req = https.request(requestOptions, (res2) => {
-        let body = "";
-        res2.on("data", chunk => body += chunk);
+      const req = https.request(uploadOptions, (res2) => {
+        let raw = "";
+        res2.on("data", chunk => raw += chunk);
         res2.on("end", () => {
           if (res2.statusCode !== 204 && res2.statusCode !== 201) {
-            console.error("❌ GCS upload failed:", res2.statusCode, body);
+            console.error("❌ GCS upload failed:", res2.statusCode, raw);
             return reject(new Error("Upload to GCS failed"));
           }
           resolve();
@@ -109,10 +112,10 @@ module.exports = async function handler(req, res) {
       });
 
       req.on("error", reject);
-      Readable.from(form).pipe(req);
+      form.pipe(req);
     });
 
-    // Register file
+    // Step 4: Register file in Shopify
     const finalizeMutation = `
       mutation fileCreate($files: [FileCreateInput!]!) {
         fileCreate(files: $files) {
@@ -136,13 +139,19 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         query: finalizeMutation,
         variables: {
-          files: [{ originalSource: target.resourceUrl, alt: "AI-generated dog image" }]
+          files: [
+            {
+              originalSource: target.resourceUrl,
+              alt: "AI-generated dog image"
+            }
+          ]
         }
       })
     });
 
     const finalizeData = await finalizeRes.json();
     const shopifyImageUrl = finalizeData?.data?.fileCreate?.files?.[0]?.url;
+
     if (!shopifyImageUrl) throw new Error("Shopify fileCreate failed");
 
     return res.status(200).json({ shopifyImageUrl });
