@@ -79,27 +79,30 @@ module.exports = async function handler(req, res) {
     }, {});
 
     // Step 2: Upload binary to S3 URL
-const FormData = require('form-data');
+const axios = require("axios");
+const FormData = require("form-data");
+
 const form = new FormData();
 for (const key in uploadParams) {
   form.append(key, uploadParams[key]);
 }
-form.append('file', optimizedBuffer, {
+form.append("file", optimizedBuffer, {
   filename: `dog-ai-${Date.now()}.jpg`,
-  contentType: 'image/jpeg'
+  contentType: "image/jpeg"
 });
 
-const uploadRes = await fetch(uploadURL, {
-  method: 'POST',
-  body: form,
-  headers: form.getHeaders() // ✅ BẮT BUỘC PHẢI CÓ DÒNG NÀY
-});
+const headers = {
+  ...form.getHeaders(),
+  "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
+};
 
-if (!uploadRes.ok) {
-  const s3Text = await uploadRes.text(); // ✅ In lỗi chi tiết nếu có
-  console.error("❌ S3 upload failed:", uploadRes.status, s3Text);
-  throw new Error("Upload to S3 failed");
+const uploadRes = await axios.post(uploadURL, form, { headers });
+
+if (uploadRes.status !== 204 && uploadRes.status !== 201) {
+  console.error("❌ GCS Upload failed:", uploadRes.status, uploadRes.data);
+  throw new Error("Upload to GCS failed");
 }
+
 
 
     // Step 3: Create file in Shopify
