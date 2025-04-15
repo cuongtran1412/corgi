@@ -1,7 +1,9 @@
 const fetch = require("node-fetch");
 const sharp = require("sharp");
-const https = require("https");
-const FormData = require("form-data");
+const { request } = require("undici");
+const { FormData } = require("formdata-node");
+const { fileFromBuffer } = require("formdata-node/file-from-buffer");
+const { FormDataEncoder } = require("form-data-encoder");
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "https://pawdiprints.com");
@@ -15,7 +17,7 @@ module.exports = async function handler(req, res) {
   if (!imageUrl) return res.status(400).json({ message: "imageUrl is required" });
 
   try {
-    // Step 1: Download image and optimize
+    // Step 1: Download and optimize image
     const imageRes = await fetch(imageUrl, {
       headers: { "User-Agent": "Mozilla/5.0" }
     });
@@ -30,7 +32,7 @@ module.exports = async function handler(req, res) {
       .toBuffer();
 
     // Step 2: Get staged upload target
-    const mutation = `
+    const stagedUploadMutation = `
       mutation generateStagedUpload($input: [StagedUploadInput!]!) {
         stagedUploadsCreate(input: $input) {
           stagedTargets {
@@ -56,7 +58,7 @@ module.exports = async function handler(req, res) {
         "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN
       },
       body: JSON.stringify({
-        query: mutation,
+        query: stagedUploadMutation,
         variables: {
           input: [
             {
@@ -77,52 +79,30 @@ module.exports = async function handler(req, res) {
     const uploadURL = target.url;
     const parameters = target.parameters;
 
-    // Step 3: Upload image to GCS (Google Cloud Storage)
+    // Step 3: Upload to GCS using undici + formdata-node
     const form = new FormData();
     parameters.forEach(param => {
       form.append(param.name, param.value);
     });
-    form.append("file", optimizedBuffer, {
-      filename: `dog-ai-${Date.now()}.jpg`,
-      contentType: "image/jpeg"
+    form.append("file", await fileFromBuffer(optimizedBuffer, `dog-ai-${Date.now()}.jpg`, "image/jpeg"));
+
+    const encoder = new FormDataEncoder(form);
+    const uploadRes = await request(uploadURL, {
+      method: "POST",
+      headers: {
+        ...encoder.headers,
+        "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
+      },
+      body: encoder.encode()
     });
 
-    const parsedUrl = new URL(uploadURL);
-    const uploadPromise = new Promise((resolve, reject) => {
-      const req = https.request(
-        {
-          method: "POST",
-          hostname: parsedUrl.hostname,
-          path: parsedUrl.pathname + parsedUrl.search,
-          headers: {
-            ...form.getHeaders(),
-            "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
-          }
-        },
-        (resStream) => {
-          let rawData = "";
-          resStream.setEncoding("utf8");
-          resStream.on("data", chunk => rawData += chunk);
-          resStream.on("end", () => {
-            if (resStream.statusCode === 204 || resStream.statusCode === 201) {
-              resolve();
-            } else {
-              console.error("❌ GCS upload failed:", resStream.statusCode, rawData);
-              reject(new Error("Upload to GCS failed"));
-            }
-          });
-        }
-      );
+    const status = uploadRes.statusCode;
+    const bodyText = await uploadRes.body.text();
 
-      req.on("error", err => {
-        console.error("❌ GCS upload request error:", err);
-        reject(err);
-      });
-
-      form.pipe(req);
-    });
-
-    await uploadPromise;
+    if (status !== 204 && status !== 201) {
+      console.error("❌ GCS upload failed:", status, bodyText);
+      throw new Error("Upload to GCS failed");
+    }
 
     // Step 4: Register file in Shopify
     const finalizeMutation = `
