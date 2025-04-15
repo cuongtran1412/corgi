@@ -13,15 +13,18 @@ module.exports = async (req, res) => {
   const { imageUrl } = req.body;
 
   try {
+    // Fetch ảnh từ Dall-E
     const imageRes = await fetch(imageUrl);
     const arrayBuffer = await imageRes.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // Resize ảnh
     const optimizedBuffer = await sharp(buffer)
       .resize({ width: 1024 })
       .toFormat("jpeg")
       .toBuffer();
 
+    // Upload lên Shopify Files
     const shopifyRes = await fetch(
       `https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/files.json`,
       {
@@ -41,6 +44,7 @@ module.exports = async (req, res) => {
     );
 
     const text = await shopifyRes.text();
+
     if (!shopifyRes.ok) {
       console.error("❌ Shopify upload failed:", text);
       return res.status(500).json({ error: 'Upload to Shopify failed', details: text });
@@ -49,9 +53,9 @@ module.exports = async (req, res) => {
     const uploaded = JSON.parse(text);
     const shopifyImageUrl = uploaded?.file?.url;
 
-    res.status(200).json({ shopifyImageUrl });
+    return res.status(200).json({ shopifyImageUrl });
   } catch (err) {
     console.error("❌ Upload error:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
