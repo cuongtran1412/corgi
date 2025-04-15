@@ -61,7 +61,7 @@ module.exports = async function handler(req, res) {
               filename: `dog-ai-${Date.now()}.jpg`,
               mimeType: "image/jpeg",
               resource: "FILE",
-              fileSize: optimizedBuffer.length
+              fileSize: optimizedBuffer.length.toString()
             }
           ]
         }
