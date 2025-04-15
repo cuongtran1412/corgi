@@ -79,22 +79,28 @@ module.exports = async function handler(req, res) {
     }, {});
 
     // Step 2: Upload binary to S3 URL
-    const FormData = require('form-data');
-    const form = new FormData();
-    for (const key in uploadParams) {
-      form.append(key, uploadParams[key]);
-    }
-    form.append('file', optimizedBuffer, {
-      filename: `dog-ai-${Date.now()}.jpg`,
-      contentType: 'image/jpeg'
-    });
+const FormData = require('form-data');
+const form = new FormData();
+for (const key in uploadParams) {
+  form.append(key, uploadParams[key]);
+}
+form.append('file', optimizedBuffer, {
+  filename: `dog-ai-${Date.now()}.jpg`,
+  contentType: 'image/jpeg'
+});
 
-    const uploadRes = await fetch(uploadURL, {
-      method: 'POST',
-      body: form
-    });
+const uploadRes = await fetch(uploadURL, {
+  method: 'POST',
+  body: form,
+  headers: form.getHeaders() // ✅ BẮT BUỘC PHẢI CÓ DÒNG NÀY
+});
 
-    if (!uploadRes.ok) throw new Error("Upload to S3 failed");
+if (!uploadRes.ok) {
+  const s3Text = await uploadRes.text(); // ✅ In lỗi chi tiết nếu có
+  console.error("❌ S3 upload failed:", uploadRes.status, s3Text);
+  throw new Error("Upload to S3 failed");
+}
+
 
     // Step 3: Create file in Shopify
     const finalizeMutation = `
