@@ -2,8 +2,8 @@ const fetch = require("node-fetch");
 const sharp = require("sharp");
 const { request } = require("undici");
 const { FormData } = require("formdata-node");
-const { fileFromBuffer } = require("formdata-node/file-from-buffer");
 const { FormDataEncoder } = require("form-data-encoder");
+const { Blob } = require("buffer");
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "https://pawdiprints.com");
@@ -79,12 +79,14 @@ module.exports = async function handler(req, res) {
     const uploadURL = target.url;
     const parameters = target.parameters;
 
-    // Step 3: Upload to GCS using undici + formdata-node
+    // Step 3: Upload to GCS using undici + formdata-node + Blob (no fileFromBuffer)
     const form = new FormData();
     parameters.forEach(param => {
       form.append(param.name, param.value);
     });
-    form.append("file", await fileFromBuffer(optimizedBuffer, `dog-ai-${Date.now()}.jpg`, "image/jpeg"));
+
+    const blob = new Blob([optimizedBuffer], { type: "image/jpeg" });
+    form.append("file", blob, `dog-ai-${Date.now()}.jpg`);
 
     const encoder = new FormDataEncoder(form);
     const uploadRes = await request(uploadURL, {
