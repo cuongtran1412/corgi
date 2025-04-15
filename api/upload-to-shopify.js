@@ -44,7 +44,13 @@ module.exports = async function handler(req, res) {
     }
 
     const uploaded = JSON.parse(raw);
-    const shopifyImageUrl = uploaded?.file?.url;
+    const files = uploaded?.files;
+    if (!files || files.length === 0) {
+      console.error("❌ No file returned from Shopify", uploaded);
+      return res.status(500).json({ error: "No file returned from Shopify" });
+    }
+    const shopifyImageUrl = files[0].url;
+
     return res.status(200).json({ shopifyImageUrl });
 
   } catch (err) {
