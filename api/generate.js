@@ -1,4 +1,6 @@
 const { OpenAI } = require("openai");
+const axios = require("axios");
+const FormData = require("form-data");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -38,6 +40,7 @@ module.exports = async (req, res) => {
 
     const prompt = `A full-body of a ${dogBreed} sitting and facing forward wearing ${apparelDescription} with an all-over print ${text} pattern. The pattern is flat, clearly printable, and suitable for real fabric printing, avoiding 3D textures, gradients, or light effects. ${namePrompt} The print covers the entire surface of the ${apparelDescription}. Use soft, neutral lighting and a white studio background. No duplicate hoodies. No floating items. No extra visuals. Do not include any mockups, props, overlays, or UI. Only one dog wearing the ${apparelDescription} should appear.`;
 
+    // 🔹 Step 1: Generate image with DALL·E
     const image = await openai.images.generate({
       model: "dall-e-3",
       prompt,
@@ -45,9 +48,29 @@ module.exports = async (req, res) => {
     });
 
     const imageUrl = image.data[0].url;
-    res.status(200).json({ imageUrl, prompt });
+
+    // 🔹 Step 2: Upload to Cloudinary
+    const cloudinaryUpload = await uploadToCloudinary(imageUrl);
+
+    // 🔹 Step 3: Return Cloudinary URL
+    res.status(200).json({ imageUrl: cloudinaryUpload, prompt });
+
   } catch (error) {
     console.error("❌ Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
+
+// 🔧 Helper function: Upload DALL·E image to Cloudinary
+async function uploadToCloudinary(imageUrl) {
+  const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload";
+  const formData = new FormData();
+  formData.append("file", imageUrl);
+  formData.append("upload_preset", "ml_default"); // Nhớ tạo preset này trên Cloudinary
+
+  const response = await axios.post(cloudinaryUrl, formData, {
+    headers: formData.getHeaders(),
+  });
+
+  return response.data.secure_url;
+}
