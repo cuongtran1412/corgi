@@ -1,155 +1,53 @@
-const fetch = require("node-fetch");
-const sharp = require("sharp");
-const https = require("https");
-const FormData = require("form-data");
+const { OpenAI } = require("openai");
 
-module.exports = async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "https://pawdiprints.com");
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+module.exports = async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ message: "Only POST requests allowed" });
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
 
-  const { imageUrl } = req.body;
-  if (!imageUrl) return res.status(400).json({ message: "imageUrl is required" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Only POST requests allowed" });
+  }
+
+  const {
+    apparel = "hoodie",
+    dogBreed = "dog",
+    name = "",
+    text = "simple repeating"
+  } = req.body;
+
+  let apparelDescription = apparel;
+  if (apparel === "pajama") {
+    apparelDescription = "a full-body dog pajama suit with zipper";
+  } else if (apparel === "t shirt") {
+    apparelDescription = "dog shirt sleeveless ";
+  }
 
   try {
-    const imageRes = await fetch(imageUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
-    if (!imageRes.ok) throw new Error("Failed to fetch image");
+    const namePrompt = name.trim()
+      ? `The word '${name}' is printed in large, bold capital letters at the center of the chest of the ${apparelDescription}, clearly visible.`
+      : "";
 
-    const arrayBuffer = await imageRes.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const prompt = `A full-body of a ${dogBreed} sitting and facing forward wearing ${apparelDescription} with an all-over print ${text} pattern. The pattern is flat, clearly printable, and suitable for real fabric printing, avoiding 3D textures, gradients, or light effects. ${namePrompt} The print covers the entire surface of the ${apparelDescription}. Use soft, neutral lighting and a white studio background. No duplicate hoodies. No floating items. No extra visuals. Do not include any mockups, props, overlays, or UI. Only one dog wearing the ${apparelDescription} should appear.`;
 
-    const optimizedBuffer = await sharp(buffer)
-      .resize({ width: 1024 })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-
-    // Step 1: Get staged upload target
-    const stagedUploadRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/graphql.json`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN
-      },
-      body: JSON.stringify({
-        query: `
-          mutation generateStagedUpload($input: [StagedUploadInput!]!) {
-            stagedUploadsCreate(input: $input) {
-              stagedTargets {
-                url
-                resourceUrl
-                parameters {
-                  name
-                  value
-                }
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }
-        `,
-        variables: {
-          input: [
-            {
-              filename: `dog-ai-${Date.now()}.jpg`,
-              mimeType: "image/jpeg",
-              resource: "FILE",
-              fileSize: optimizedBuffer.length.toString()
-            }
-          ]
-        }
-      })
+    const image = await openai.images.generate({
+      model: "dall-e-3",
+      prompt,
+      size: "1024x1024",
     });
 
-    const json = await stagedUploadRes.json();
-    if (json.errors) throw new Error(JSON.stringify(json.errors));
-    const target = json.data.stagedUploadsCreate.stagedTargets[0];
-
-    // Step 2: Upload to GCS
-    const uploadUrl = new URL(target.url);
-    const form = new FormData();
-
-    target.parameters.forEach(param => {
-      form.append(param.name, param.value);
-    });
-
-    form.append("file", optimizedBuffer, {
-      filename: `dog-ai-${Date.now()}.jpg`,
-      contentType: "image/jpeg"
-    });
-
-    await new Promise((resolve, reject) => {
-      const reqUpload = https.request({
-        method: "POST",
-        hostname: uploadUrl.hostname,
-        path: uploadUrl.pathname + uploadUrl.search,
-        headers: {
-          ...form.getHeaders(),
-          "X-Goog-Content-SHA256": "UNSIGNED-PAYLOAD"
-        }
-      }, (res2) => {
-        let raw = "";
-        res2.on("data", chunk => raw += chunk);
-        res2.on("end", () => {
-          if (res2.statusCode !== 204 && res2.statusCode !== 201) {
-            console.error("❌ GCS upload failed:", res2.statusCode, raw);
-            return reject(new Error("Upload to GCS failed"));
-          }
-          resolve();
-        });
-      });
-
-      reqUpload.on("error", reject);
-      form.pipe(reqUpload);
-    });
-
-    // Step 3: Register file in Shopify
-    const finalizeRes = await fetch(`https://${process.env.SHOPIFY_STORE}/admin/api/2024-01/graphql.json`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN
-      },
-      body: JSON.stringify({
-        query: `
-          mutation fileCreate($files: [FileCreateInput!]!) {
-            fileCreate(files: $files) {
-              files {
-                url
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }
-        `,
-        variables: {
-          files: [
-            {
-              originalSource: target.resourceUrl,
-              alt: "AI-generated dog image"
-            }
-          ]
-        }
-      })
-    });
-
-    const finalizeData = await finalizeRes.json();
-    const shopifyImageUrl = finalizeData?.data?.fileCreate?.files?.[0]?.url;
-
-    if (!shopifyImageUrl) throw new Error("Shopify fileCreate failed");
-
-    return res.status(200).json({ shopifyImageUrl });
-
-  } catch (err) {
-    console.error("❌ Final error:", err);
-    return res.status(500).json({ error: err.message });
+    const imageUrl = image.data[0].url;
+    res.status(200).json({ imageUrl, prompt });
+  } catch (error) {
+    console.error("❌ Error:", error);
+    res.status(500).json({ error: error.message });
   }
 };
