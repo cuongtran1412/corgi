@@ -28,7 +28,8 @@ module.exports = async (req, res) => {
   // 🔧 Mô tả chính xác kiểu áo để AI hiểu đúng
   let apparelDescription = apparel;
   if (apparel === "pajama") {
-    apparelDescription = "a full-body dog pajama suit. The suit has no zippers or buttons.";
+    apparelDescription = "a full-body dog pajama suit. The pajama has no zippers, buttons, or any fasteners. Avoid showing visible zippers or buttons of any kind.
+";
   } else if (apparel === "t shirt") {
     apparelDescription = "a dog t-shirt";
   } else if (apparel === "hoodie") {
