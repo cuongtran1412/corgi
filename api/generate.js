@@ -22,23 +22,27 @@ module.exports = async (req, res) => {
   const {
     apparel = "hoodie",
     dogBreed = "dog",
-    name = "",
     text = "simple repeating"
   } = req.body;
 
+  // 🔧 Mô tả chính xác kiểu áo để AI hiểu đúng
   let apparelDescription = apparel;
   if (apparel === "pajama") {
     apparelDescription = "a full-body dog pajama suit with zipper";
   } else if (apparel === "t shirt") {
-    apparelDescription = "dog shirt sleeveless ";
+    apparelDescription = "a sleeveless dog t-shirt";
+  } else if (apparel === "hoodie") {
+    apparelDescription = "a dog hoodie without strings or pockets, fully printed with hood up";
   }
 
   try {
-    const namePrompt = name.trim()
-      ? `The word '${name}' is printed in large, bold capital letters at the center of the chest of the ${apparelDescription}, clearly visible.`
-      : "";
-
-    const prompt = `A full-body of a ${dogBreed} sitting and facing forward wearing ${apparelDescription} with an all-over print ${text} pattern. The pattern is flat, clearly printable, and suitable for real fabric printing, avoiding 3D textures, gradients, or light effects. ${namePrompt} The print covers the entire surface of the ${apparelDescription}. Use soft, neutral lighting and a white studio background. No duplicate hoodies. No floating items. No extra visuals. Do not include any mockups, props, overlays, or UI. Only one dog wearing the ${apparelDescription} should appear.`;
+    // 🧠 Prompt chính để sinh ảnh in vải
+    const prompt = `A ${dogBreed}, sitting and facing forward, wearing ${apparelDescription} with an all-over ${text} pattern. 
+The pattern is flat, seamless, and designed for real fabric printing – no gradients, shadows, or 3D effects. 
+The print covers the entire garment. 
+Use soft neutral lighting and a white studio background. 
+No duplicate garments, floating items, accessories, or props. 
+Only one dog in frame, no humans or mockup elements.`;
 
     // 🔹 Step 1: Generate image with DALL·E
     const image = await openai.images.generate({
@@ -61,12 +65,12 @@ module.exports = async (req, res) => {
   }
 };
 
-// 🔧 Helper function: Upload DALL·E image to Cloudinary
+// 🔧 Helper: Upload DALL·E image to Cloudinary
 async function uploadToCloudinary(imageUrl) {
   const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload";
   const formData = new FormData();
   formData.append("file", imageUrl);
-  formData.append("upload_preset", "ml_default"); // Nhớ tạo preset này trên Cloudinary
+  formData.append("upload_preset", "ml_default"); // nhớ preset này tồn tại trên Cloudinary
 
   const response = await axios.post(cloudinaryUrl, formData, {
     headers: formData.getHeaders(),
