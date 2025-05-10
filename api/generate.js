@@ -20,31 +20,18 @@ module.exports = async (req, res) => {
   }
 
   const {
-    apparel = "hoodie",
-    dogBreed = "dog",
-    text = "simple repeating"
+    text = "unicorns and rainbows",
   } = req.body;
 
-  // 🔧 Mô tả chính xác kiểu áo để AI hiểu đúng
-  let apparelDescription = apparel;
-  if (apparel === "pajama") {
-    apparelDescription = "wearing a seamless, full-body dog pajama pullover. The pajama has no zippers, buttons, or any visible fasteners. Do not show any fasteners, zippers, buttons, snaps, or closures of any kind. ";
-  } else if (apparel === "t shirt") {
-    apparelDescription = "a dog t-shirt";
-  } else if (apparel === "hoodie") {
-    apparelDescription = "a dog hoodie without strings or pockets, fully printed with hood up";
-  }
-
   try {
-    // 🧠 Prompt chính để sinh ảnh in vải
-    const prompt = `A ${dogBreed}, sitting and facing forward, wearing ${apparelDescription} with an all-over ${text} pattern. 
-The pattern is flat, seamless, and designed for real fabric printing – no gradients, shadows, or 3D effects. 
-The print covers the entire garment. 
-Use soft neutral lighting and a white studio background. 
-No duplicate garments, floating items, accessories, or props. 
-Only one dog in frame, no humans or mockup elements.`;
+    // ✅ Prompt để tạo pattern rõ ràng, dùng được cho in ấn
+    const prompt = `A seamless, repeating pattern of ${text}, designed for real fabric printing.
+Flat vector style, bold outlines, vibrant colors, high contrast.
+No gradients, no 3D effects, no lighting, no shadows.
+No props or background, just the pattern on white background.
+Ideal for sublimation printing.`;
 
-    // 🔹 Step 1: Generate image with DALL·E
+    // 🧠 Gen pattern với DALL·E 3
     const image = await openai.images.generate({
       model: "dall-e-3",
       prompt,
@@ -53,10 +40,9 @@ Only one dog in frame, no humans or mockup elements.`;
 
     const imageUrl = image.data[0].url;
 
-    // 🔹 Step 2: Upload to Cloudinary
+    // ☁️ Upload lên Cloudinary
     const cloudinaryUpload = await uploadToCloudinary(imageUrl);
 
-    // 🔹 Step 3: Return Cloudinary URL
     res.status(200).json({ imageUrl: cloudinaryUpload, prompt });
 
   } catch (error) {
@@ -65,12 +51,12 @@ Only one dog in frame, no humans or mockup elements.`;
   }
 };
 
-// 🔧 Helper: Upload DALL·E image to Cloudinary
+// 🔧 Upload image từ URL lên Cloudinary
 async function uploadToCloudinary(imageUrl) {
   const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload";
   const formData = new FormData();
   formData.append("file", imageUrl);
-  formData.append("upload_preset", "ml_default"); // nhớ preset này tồn tại trên Cloudinary
+  formData.append("upload_preset", "ml_default"); // thay bằng preset của mày
 
   const response = await axios.post(cloudinaryUrl, formData, {
     headers: formData.getHeaders(),
