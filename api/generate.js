@@ -20,18 +20,20 @@ module.exports = async (req, res) => {
   }
 
   const {
-    text = "unicorns and rainbows",
+    text = "",
+    designStyle = "",
+    colorMood = "",
+    detailLevel = ""
   } = req.body;
 
-  try {
-    // ✅ Prompt để tạo pattern rõ ràng, dùng được cho in ấn
-    const prompt = `A seamless, repeating pattern of ${text}, designed for real fabric printing.
-Flat vector style, bold outlines, vibrant colors, high contrast.
-No gradients, no 3D effects, no lighting, no shadows.
-No props or background, just the pattern on white background.
-Ideal for sublimation printing.`;
+  if (!text || !designStyle || !colorMood || !detailLevel) {
+    return res.status(400).json({ error: "Missing required fields." });
+  }
 
-    // 🧠 Gen pattern với DALL·E 3
+  const prompt = buildPrompt({ text, designStyle, colorMood, detailLevel });
+
+  try {
+    // Generate image with DALL·E
     const image = await openai.images.generate({
       model: "dall-e-3",
       prompt,
@@ -40,7 +42,7 @@ Ideal for sublimation printing.`;
 
     const imageUrl = image.data[0].url;
 
-    // ☁️ Upload lên Cloudinary
+    // Upload to Cloudinary
     const cloudinaryUpload = await uploadToCloudinary(imageUrl);
 
     res.status(200).json({ imageUrl: cloudinaryUpload, prompt });
@@ -51,12 +53,22 @@ Ideal for sublimation printing.`;
   }
 };
 
-// 🔧 Upload image từ URL lên Cloudinary
+// 🧠 Prompt builder từ preset
+function buildPrompt({ text, designStyle, colorMood, detailLevel }) {
+  return `
+A seamless, repeating pattern of ${text}, in ${designStyle} style, with ${colorMood} tones.
+The illustration is ${detailLevel}, flat vector style, bold outlines, high contrast.
+Designed specifically for real fabric printing – no gradients, no shadows, no 3D, no lighting effects.
+No props or background. White or transparent background only.
+`;
+}
+
+// ☁️ Upload image từ URL lên Cloudinary
 async function uploadToCloudinary(imageUrl) {
   const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload";
   const formData = new FormData();
   formData.append("file", imageUrl);
-  formData.append("upload_preset", "ml_default"); // thay bằng preset của mày
+  formData.append("upload_preset", "ml_default"); // thay preset này nếu mày dùng preset riêng
 
   const response = await axios.post(cloudinaryUrl, formData, {
     headers: formData.getHeaders(),
