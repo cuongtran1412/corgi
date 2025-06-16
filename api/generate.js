@@ -1,6 +1,7 @@
 const { OpenAI } = require("openai");
 const axios = require("axios");
 const FormData = require("form-data");
+const sharp = require("sharp");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -24,7 +25,7 @@ module.exports = async (req, res) => {
   const prompt = buildPrompt({ text, designStyle, colorMood, detailLevel });
 
   try {
-    // 1. Generate image with DALL·E at 1536x1024
+    // 1. Generate DALL·E image
     const image = await openai.images.generate({
       model: "dall-e-3",
       prompt,
@@ -35,10 +36,15 @@ module.exports = async (req, res) => {
 
     // 2. Download image
     const response = await axios.get(imageUrl, { responseType: "arraybuffer" });
-    const imageBuffer = Buffer.from(response.data);
+    const fullImage = Buffer.from(response.data);
 
-    // 3. Upload to Cloudinary
-    const uploadedUrl = await uploadToCloudinary(imageBuffer);
+    // 3. Crop from 1024x1792 → 1024x1536 (centered)
+    const croppedBuffer = await sharp(fullImage)
+      .extract({ left: 0, top: 128, width: 1024, height: 1536 }) // top=128 giữ phần trung tâm đẹp
+      .toBuffer();
+
+    // 4. Upload to Cloudinary
+    const uploadedUrl = await uploadToCloudinary(croppedBuffer);
 
     res.status(200).json({ imageUrl: uploadedUrl, prompt });
   } catch (error) {
@@ -50,7 +56,8 @@ module.exports = async (req, res) => {
 // 🧠 Prompt builder
 function buildPrompt({ text, designStyle, colorMood, detailLevel }) {
   return `
-A seamless, repeating pattern of tiny ${text}, in ${designStyle} style, with ${colorMood} tones.
+A seamless, repeating pattern of tiny ${text}, scattered evenly in ${designStyle} style, with ${colorMood} tones.
+The pattern is small-scale and uniform, designed like a textile print.
 The illustration is ${detailLevel}, flat vector style, bold outlines, high contrast.
 Designed specifically for real fabric printing – no gradients, no shadows, no 3D, no lighting effects.
 No props or background. White or transparent background only.
@@ -61,7 +68,7 @@ No props or background. White or transparent background only.
 async function uploadToCloudinary(imageBuffer) {
   const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload";
   const formData = new FormData();
-  formData.append("file", imageBuffer, { filename: "pattern-1536x1024.png" });
+  formData.append("file", imageBuffer, { filename: "pattern-1024x1536.png" });
   formData.append("upload_preset", "ml_default"); // sửa nếu mày có preset riêng
 
   const response = await axios.post(cloudinaryUrl, formData, {
