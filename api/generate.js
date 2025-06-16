@@ -50,7 +50,7 @@ module.exports = async (req, res) => {
 // 🧠 Prompt builder
 function buildPrompt({ text, designStyle, colorMood, detailLevel }) {
   return `
-A seamless, repeating pattern of ${text}, in ${designStyle} style, with ${colorMood} tones.
+A seamless, repeating pattern of tiny ${text}, in ${designStyle} style, with ${colorMood} tones.
 The illustration is ${detailLevel}, flat vector style, bold outlines, high contrast.
 Designed specifically for real fabric printing – no gradients, no shadows, no 3D, no lighting effects.
 No props or background. White or transparent background only.
