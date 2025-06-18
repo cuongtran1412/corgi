@@ -58,7 +58,7 @@ function buildPrompt(text) {
   return `
 A seamless repeating pattern of tiny ${text}, with natural variation in placement and shape.  
 Designed to be used as a fabric print.  
-Flat vector look, strong contrast, no shadows or gradients. No props or background.
+Flat vector look, strong contrast, no shadows or gradients.
 `;
 }
 
