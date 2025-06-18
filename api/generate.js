@@ -16,13 +16,13 @@ module.exports = async (req, res) => {
   if (req.method !== "POST")
     return res.status(405).json({ message: "Only POST requests allowed" });
 
-  const { text = "", designStyle = "", colorMood = "", detailLevel = "" } = req.body;
+  const { text = "" } = req.body;
 
-  if (!text || !designStyle || !colorMood || !detailLevel) {
-    return res.status(400).json({ error: "Missing required fields." });
+  if (!text) {
+    return res.status(400).json({ error: "Missing required field: text." });
   }
 
-  const prompt = buildPrompt({ text, designStyle, colorMood, detailLevel });
+  const prompt = buildPrompt(text);
 
   try {
     // 1. Generate DALL·E image
@@ -40,7 +40,7 @@ module.exports = async (req, res) => {
 
     // 3. Crop from 1024x1792 → 1024x1536 (centered)
     const croppedBuffer = await sharp(fullImage)
-      .extract({ left: 0, top: 128, width: 1024, height: 1536 }) // top=128 giữ phần trung tâm đẹp
+      .extract({ left: 0, top: 128, width: 1024, height: 1536 })
       .toBuffer();
 
     // 4. Upload to Cloudinary
@@ -54,11 +54,11 @@ module.exports = async (req, res) => {
 };
 
 // 🧠 Prompt builder
-function buildPrompt({ text, designStyle, colorMood, detailLevel }) {
+function buildPrompt(text) {
   return `
-A seamless, repeating pattern of tiny ${text}, scattered evenly in ${designStyle} style, with ${colorMood} tones.
+A seamless, repeating pattern of tiny ${text}, scattered evenly in a simple style.
 The pattern is small-scale and uniform, designed like a textile print.
-The illustration is ${detailLevel}, flat vector style, bold outlines, high contrast.
+Flat vector style, bold outlines, high contrast.
 Designed specifically for real fabric printing – no gradients, no shadows, no 3D, no lighting effects.
 No props or background. White or transparent background only.
 `;
@@ -69,7 +69,7 @@ async function uploadToCloudinary(imageBuffer) {
   const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload";
   const formData = new FormData();
   formData.append("file", imageBuffer, { filename: "pattern-1024x1536.png" });
-  formData.append("upload_preset", "ml_default"); // sửa nếu mày có preset riêng
+  formData.append("upload_preset", "ml_default");
 
   const response = await axios.post(cloudinaryUrl, formData, {
     headers: formData.getHeaders(),
