@@ -56,9 +56,9 @@ module.exports = async (req, res) => {
 // 🧠 Prompt builder
 function buildPrompt(text) {
   return `
-A seamless repeating pattern of tiny ${text}, distributed with natural variation.  
-Flat vector illustration, bold lines, high contrast.  
-No shading, gradients, or props. For fabric printing — white or transparent background only.
+A seamless repeating pattern of tiny ${text}, arranged playfully with organic spacing.
+Flat vector style, bold outlines, high contrast.
+Designed for fabric printing — no gradients, shadows, props, or background. White or transparent background only.
 `;
 }
 
